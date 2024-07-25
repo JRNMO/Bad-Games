@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Space Rocket Game - Visually Enhanced</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; display: flex; justify-content: center; align-items: center; }
+        #gameContainer { width: 100%; height: 100%; max-width: 56.25vh; max-height: 100vh; position: relative; background-color: #000033; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+    <script>
+        const container = document.getElementById('gameContainer');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const GAME_WIDTH = 540;
+        const GAME_HEIGHT = 960;
+
+        function resizeCanvas() {
+            const containerAspectRatio = container.clientWidth / container.clientHeight;
+            const gameAspectRatio = GAME_WIDTH / GAME_HEIGHT;
+
+            if (containerAspectRatio > gameAspectRatio) {
+                canvas.height = container.clientHeight;
+                canvas.width = canvas.height * gameAspectRatio;
+            } else {
+                canvas.width = container.clientWidth;
+                canvas.height = canvas.width / gameAspectRatio;
+            }
+        }
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        function scaleX(x) { return x * (canvas.width / GAME_WIDTH); }
+        function scaleY(y) { return y * (canvas.height / GAME_HEIGHT); }
+
+        let gameState = 'start';
+        let score = 0;
+        let lastTime = 0;
+
+        const rocket = {
+            x: GAME_WIDTH / 2,
+            y: GAME_HEIGHT * 0.8,
+            width: 40,
+            height: 60,
+            speed: 0,
+            gravity: 0.25
+        };
+
+        let obstacles = [];
+        let stars = [];
+        let particles = [];
+
+        function createStars() {
+            for (let i = 0; i < 100; i++) {
+                stars.push({
+                    x: Math.random() * GAME_WIDTH,
+                    y: Math.random() * GAME_HEIGHT,
+                    size: Math.random() * 2 + 1,
+                    speed: Math.random() * 0.5 + 0.1
+                });
+            }
+        }
+
+        function createObstacle() {
+            const gap = Math.max(200, 300 - score * 5);
+            const obstacleWidth = 70;
+            const minHeight = 50;
+            const maxHeight = GAME_HEIGHT - gap - minHeight;
+            const height = Math.random() * (maxHeight - minHeight) + minHeight;
+            const hue = Math.random() * 360;
+
+            obstacles.push(
+                { x: GAME_WIDTH, y: 0, width: obstacleWidth, height: height, hue: hue },
+                { x: GAME_WIDTH, y: height + gap, width: obstacleWidth, height: GAME_HEIGHT - height - gap, hue: hue }
+            );
+        }
+
+        function drawBackground() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#000033');
+            gradient.addColorStop(1, '#000066');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'white';
+            stars.forEach(star => {
+                ctx.beginPath();
+                ctx.arc(scaleX(star.x), scaleY(star.y), scaleX(star.size), 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawRocket() {
+            const scaledX = scaleX(rocket.x);
+            const scaledY = scaleY(rocket.y);
+            const scaledWidth = scaleX(rocket.width);
+            const scaledHeight = scaleY(rocket.height);
+
+            ctx.fillStyle = '#D3D3D3';
+            ctx.beginPath();
+            ctx.moveTo(scaledX, scaledY - scaledHeight / 2);
+            ctx.lineTo(scaledX - scaledWidth / 2, scaledY + scaledHeight / 2);
+            ctx.lineTo(scaledX + scaledWidth / 2, scaledY + scaledHeight / 2);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#87CEEB';
+            ctx.beginPath();
+            ctx.arc(scaledX, scaledY - scaledHeight / 6, scaledWidth / 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#FF6347';
+            ctx.beginPath();
+            ctx.moveTo(scaledX - scaledWidth / 2, scaledY + scaledHeight / 3);
+            ctx.lineTo(scaledX - scaledWidth, scaledY + scaledHeight / 2);
+            ctx.lineTo(scaledX - scaledWidth / 2, scaledY + scaledHeight / 2);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(scaledX + scaledWidth / 2, scaledY + scaledHeight / 3);
+            ctx.lineTo(scaledX + scaledWidth, scaledY + scaledHeight / 2);
+            ctx.lineTo(scaledX + scaledWidth / 2, scaledY + scaledHeight / 2);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawObstacles() {
+            obstacles.forEach(obstacle => {
+                const gradient = ctx.createLinearGradient(
+                    scaleX(obstacle.x), scaleY(obstacle.y),
+                    scaleX(obstacle.x + obstacle.width), scaleY(obstacle.y + obstacle.height)
+                );
+                gradient.addColorStop(0, `hsl(${obstacle.hue}, 100%, 50%)`);
+                gradient.addColorStop(1, `hsl(${(obstacle.hue + 60) % 360}, 100%, 50%)`);
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(scaleX(obstacle.x), scaleY(obstacle.y), scaleX(obstacle.width), scaleY(obstacle.height));
+                
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(scaleX(obstacle.x), scaleY(obstacle.y), scaleX(obstacle.width), scaleY(obstacle.height));
+            });
+        }
+
+        function addParticle() {
+            particles.push({
+                x: rocket.x,
+                y: rocket.y + rocket.height / 2,
+                size: Math.random() * 3 + 1,
+                speedX: (Math.random() - 0.5) * 2,
+                speedY: Math.random() * 3 + 1,
+                life: 1
+            });
+        }
+
+        function updateParticles(deltaTime) {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.speedX * (deltaTime / 16);
+                p.y += p.speedY * (deltaTime / 16);
+                p.life -= 0.02 * (deltaTime / 16);
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.fillStyle = `rgba(255, 165, 0, ${p.life})`;
+                ctx.beginPath();
+                ctx.arc(scaleX(p.x), scaleY(p.y), scaleX(p.size), 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawScore() {
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.font = `${scaleY(36)}px Arial`;
+            ctx.fillText('SCORE', canvas.width / 2, scaleY(40));
+            ctx.font = `${scaleY(48)}px Arial`;
+            ctx.fillText(score.toString(), canvas.width / 2, scaleY(90));
+        }
+
+        function checkCollision() {
+            return obstacles.some(obstacle => 
+                rocket.x + rocket.width / 2 > obstacle.x &&
+                rocket.x - rocket.width / 2 < obstacle.x + obstacle.width &&
+                rocket.y + rocket.height / 2 > obstacle.y &&
+                rocket.y - rocket.height / 2 < obstacle.y + obstacle.height
+            );
+        }
+
+        function update(currentTime) {
+            const deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
+
+            if (gameState === 'playing') {
+                rocket.speed += rocket.gravity * (deltaTime / 16);
+                rocket.y += rocket.speed * (deltaTime / 16);
+
+                if (rocket.speed < 0) {
+                    for (let i = 0; i < 3; i++) {
+                        addParticle();
+                    }
+                }
+
+                updateParticles(deltaTime);
+
+                if (rocket.y + rocket.height / 2 > GAME_HEIGHT || rocket.y - rocket.height / 2 < 0 || checkCollision()) {
+                    gameState = 'gameOver';
+                }
+
+                obstacles.forEach(obstacle => {
+                    obstacle.x -= 2 * (deltaTime / 16);
+                });
+
+                if (obstacles.length === 0 || obstacles[obstacles.length - 1].x < GAME_WIDTH - 300) {
+                    createObstacle();
+                    score++;
+                }
+
+                obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > 0);
+
+                stars.forEach(star => {
+                    star.x -= star.speed * (deltaTime / 16);
+                    if (star.x < 0) {
+                        star.x = GAME_WIDTH;
+                        star.y = Math.random() * GAME_HEIGHT;
+                    }
+                });
+            }
+        }
+
+        function draw() {
+            drawBackground();
+            drawObstacles();
+            drawParticles();
+            drawRocket();
+            drawScore();
+
+            if (gameState === 'start') {
+                ctx.fillStyle = 'white';
+                ctx.font = `${scaleY(36)}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.fillText('Tap to Start', canvas.width / 2, canvas.height / 2);
+            } else if (gameState === 'gameOver') {
+                ctx.fillStyle = 'white';
+                ctx.font = `${scaleY(36)}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.fillText('Game Over', canvas.width / 2, canvas.height / 2);
+                ctx.font = `${scaleY(24)}px Arial`;
+                ctx.fillText('Tap to Restart', canvas.width / 2, canvas.height / 2 + scaleY(40));
+            }
+        }
+
+        function gameLoop(currentTime) {
+            update(currentTime);
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function tap(e) {
+            e.preventDefault();
+            if (gameState === 'start') {
+                gameState = 'playing';
+                lastTime = performance.now();
+            } else if (gameState === 'playing') {
+                rocket.speed = -7;
+            } else if (gameState === 'gameOver') {
+                gameState = 'start';
+                rocket.y = GAME_HEIGHT * 0.8;
+                rocket.speed = 0;
+                obstacles = [];
+                particles = [];
+                score = 0;
+            }
+        }
+
+        canvas.addEventListener('touchstart', tap, { passive: false });
+        canvas.addEventListener('mousedown', tap);
+
+        createStars();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
