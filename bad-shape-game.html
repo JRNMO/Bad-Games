@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris Mini-Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        #game-container {
+            text-align: center;
+        }
+        #game-board {
+            display: inline-block;
+            border: 4px solid #333;
+            background-color: #fff;
+        }
+        .cell {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ccc;
+            display: inline-block;
+        }
+        .empty {
+            background-color: #fff;
+        }
+        .filled {
+            background-color: #3b82f6;
+        }
+        .active {
+            background-color: #ef4444;
+        }
+        .button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 15px;
+            margin: 5px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="score">Score: 0</div>
+        <div id="high-score">High Score: 0</div>
+        <div id="level">Level: 1</div>
+        <div id="game-board"></div>
+        <div id="game-over" style="display: none; color: red; font-weight: bold; margin-top: 10px;">Game Over!</div>
+        <div>
+            <button id="left-btn" class="button">←</button>
+            <button id="down-btn" class="button">↓</button>
+            <button id="right-btn" class="button">→</button>
+            <button id="rotate-btn" class="button">↻</button>
+        </div>
+    </div>
+
+    <script>
+        const BOARD_WIDTH = 10;
+        const BOARD_HEIGHT = 20;
+        const CELL_SIZE = 30;
+        const INITIAL_DROP_SPEED = 1000;
+        const FAST_DROP_SPEED = 50;
+        const SPEED_INCREASE_FACTOR = 0.95;
+        const SPEED_INCREASE_INTERVAL = 30000; // 30 seconds
+
+        const SHAPES = [
+            [[1, 1, 1, 1]],
+            [[1, 1], [1, 1]],
+            [[1, 1, 1], [0, 1, 0]],
+            [[1, 1, 1], [1, 0, 0]],
+            [[1, 1, 1], [0, 0, 1]],
+            [[1, 1, 0], [0, 1, 1]],
+            [[0, 1, 1], [1, 1, 0]]
+        ];
+
+        let board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+        let currentPiece = null;
+        let position = { x: 0, y: 0 };
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('tetrisHighScore') || '0', 10);
+        let gameOver = false;
+        let dropSpeed = INITIAL_DROP_SPEED;
+        let level = 1;
+        let isFastDropping = false;
+        let lastDropTime = Date.now();
+        let gameLoopId = null;
+
+        function initializeGame() {
+            const gameBoard = document.getElementById('game-board');
+            gameBoard.innerHTML = '';
+            for (let y = 0; y < BOARD_HEIGHT; y++) {
+                for (let x = 0; x < BOARD_WIDTH; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell empty';
+                    cell.id = `cell-${y}-${x}`;
+                    gameBoard.appendChild(cell);
+                }
+            }
+            updateScore();
+            updateHighScore();
+            updateLevel();
+            spawnPiece();
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        function updateBoard() {
+            for (let y = 0; y < BOARD_HEIGHT; y++) {
+                for (let x = 0; x < BOARD_WIDTH; x++) {
+                    const cell = document.getElementById(`cell-${y}-${x}`);
+                    cell.className = 'cell ' + (board[y][x] ? 'filled' : 'empty');
+                }
+            }
+            if (currentPiece) {
+                for (let y = 0; y < currentPiece.length; y++) {
+                    for (let x = 0; x < currentPiece[y].length; x++) {
+                        if (currentPiece[y][x] && position.y + y >= 0) {
+                            const cell = document.getElementById(`cell-${position.y + y}-${position.x + x}`);
+                            if (cell) cell.className = 'cell active';
+                        }
+                    }
+                }
+            }
+        }
+
+        function isValidMove(piece, pos) {
+            for (let y = 0; y < piece.length; y++) {
+                for (let x = 0; x < piece[y].length; x++) {
+                    if (piece[y][x]) {
+                        const newX = pos.x + x;
+                        const newY = pos.y + y;
+                        if (newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT || (newY >= 0 && board[newY][newX])) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        function spawnPiece() {
+            const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+            currentPiece = shape;
+            position = { 
+                x: Math.floor(BOARD_WIDTH / 2) - Math.floor(shape[0].length / 2), 
+                y: 0 
+            };
+            if (!isValidMove(currentPiece, position)) {
+                gameOver = true;
+                document.getElementById('game-over').style.display = 'block';
+            }
+            lastDropTime = Date.now();
+        }
+
+        function mergePiece() {
+            for (let y = 0; y < currentPiece.length; y++) {
+                for (let x = 0; x < currentPiece[y].length; x++) {
+                    if (currentPiece[y][x]) {
+                        board[position.y + y][position.x + x] = 1;
+                    }
+                }
+            }
+            clearLines();
+            spawnPiece();
+        }
+
+        function moveLeft() {
+            if (isValidMove(currentPiece, { x: position.x - 1, y: position.y })) {
+                position.x--;
+                updateBoard();
+            }
+        }
+
+        function moveRight() {
+            if (isValidMove(currentPiece, { x: position.x + 1, y: position.y })) {
+                position.x++;
+                updateBoard();
+            }
+        }
+
+        function rotate() {
+            const rotated = currentPiece[0].map((_, index) =>
+                currentPiece.map(row => row[index]).reverse()
+            );
+            if (isValidMove(rotated, position)) {
+                currentPiece = rotated;
+                updateBoard();
+            }
+        }
+
+        function fastDrop() {
+            isFastDropping = true;
+        }
+
+        function stopFastDrop() {
+            isFastDropping = false;
+        }
+
+        function clearLines() {
+            let linesCleared = 0;
+            for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+                if (board[y].every(cell => cell === 1)) {
+                    board.splice(y, 1);
+                    board.unshift(Array(BOARD_WIDTH).fill(0));
+                    linesCleared++;
+                    y++; // Check the same row again
+                }
+            }
+            if (linesCleared > 0) {
+                score += linesCleared * 100;
+                updateScore();
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('tetrisHighScore', highScore.toString());
+                    updateHighScore();
+                }
+            }
+        }
+
+        function updateScore() {
+            document.getElementById('score').textContent = `Score: ${score}`;
+        }
+
+        function updateHighScore() {
+            document.getElementById('high-score').textContent = `High Score: ${highScore}`;
+        }
+
+        function updateLevel() {
+            document.getElementById('level').textContent = `Level: ${level}`;
+        }
+
+        function gameLoop() {
+            if (gameOver) return;
+            
+            const now = Date.now();
+            const deltaTime = now - lastDropTime;
+            
+            if (deltaTime > (isFastDropping ? FAST_DROP_SPEED : dropSpeed)) {
+                if (isValidMove(currentPiece, { x: position.x, y: position.y + 1 })) {
+                    position.y++;
+                } else {
+                    mergePiece();
+                }
+                lastDropTime = now;
+                updateBoard();
+            }
+            
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (gameOver) return;
+            if (event.key === 'ArrowLeft' || event.key === 'a') moveLeft();
+            if (event.key === 'ArrowRight' || event.key === 'd') moveRight();
+            if (event.key === 'ArrowUp' || event.key === 'w') rotate();
+            if (event.key === 'ArrowDown' || event.key === 's') fastDrop();
+            if (event.key === ' ') {
+                event.preventDefault();
+                while (isValidMove(currentPiece, { x: position.x, y: position.y + 1 })) {
+                    position.y++;
+                }
+                mergePiece();
+                updateBoard();
+            }
+        });
+
+        document.addEventListener('keyup', (event) => {
+            if (event.key === 'ArrowDown' || event.key === 's') stopFastDrop();
+        });
+
+        document.getElementById('left-btn').addEventListener('click', moveLeft);
+        document.getElementById('right-btn').addEventListener('click', moveRight);
+        document.getElementById('rotate-btn').addEventListener('click', rotate);
+        document.getElementById('down-btn').addEventListener('mousedown', fastDrop);
+        document.getElementById('down-btn').addEventListener('mouseup', stopFastDrop);
+        document.getElementById('down-btn').addEventListener('touchstart', fastDrop);
+        document.getElementById('down-btn').addEventListener('touchend', stopFastDrop);
+
+        setInterval(() => {
+            dropSpeed *= SPEED_INCREASE_FACTOR;
+            level++;
+            updateLevel();
+        }, SPEED_INCREASE_INTERVAL);
+
+        initializeGame();
+    </script>
+</body>
+</html>
