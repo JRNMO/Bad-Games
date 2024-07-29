@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bad Bloxx Game – by JRNMO</title>
+    <title>Neon Bloxx</title>
     <style>
         body {
             margin: 0;
@@ -28,7 +28,9 @@
 
         const GAME_WIDTH = 1080;
         const GAME_HEIGHT = 1920;
-        const BASE_LAYERS = 5;
+        const BASE_LAYERS = 10; // Changed from 5 to 10
+        const MAX_HORIZONTAL_SPEED = 20;
+        const MIN_BLOCK_WIDTH = GAME_WIDTH * 0.05;
         let scale;
 
         let blockWidth, blockHeight;
@@ -70,14 +72,14 @@
         function createNewBlock() {
             currentBlock = {
                 x: GAME_WIDTH / 2 - blockWidth / 2,
-                y: GAME_HEIGHT * 0.2,
+                y: GAME_HEIGHT * 0.15, // Adjusted to be slightly higher
                 color: getRandomNeonColor(),
                 isMoving: true,
                 isDescending: false,
                 direction: Math.random() < 0.5 ? -1 : 1
             };
             blockCreationTime = Date.now();
-            currentHorizontalSpeed = baseHorizontalSpeed;
+            updateHorizontalSpeed();
         }
 
         function createClouds() {
@@ -91,12 +93,18 @@
             }
         }
 
+        function updateHorizontalSpeed() {
+            const maxWidth = GAME_WIDTH * 0.25;
+            const speedIncrease = (maxWidth - blockWidth) / (maxWidth - MIN_BLOCK_WIDTH) * (MAX_HORIZONTAL_SPEED - baseHorizontalSpeed);
+            baseHorizontalSpeed = Math.min(3 + speedIncrease, MAX_HORIZONTAL_SPEED);
+        }
+
         function update() {
             if (gameOver) return;
 
             if (currentBlock.isMoving) {
                 const elapsedTime = (Date.now() - blockCreationTime) / 1000;
-                currentHorizontalSpeed = baseHorizontalSpeed + (elapsedTime * 0.5);
+                currentHorizontalSpeed = Math.min(baseHorizontalSpeed + (elapsedTime * 0.5), MAX_HORIZONTAL_SPEED);
                 
                 currentBlock.x += currentBlock.direction * currentHorizontalSpeed;
                 if (currentBlock.x <= 0 || currentBlock.x + blockWidth >= GAME_WIDTH) {
@@ -123,18 +131,19 @@
             const overhang = Math.abs(currentBlock.x - lastBlock.x);
             
             if (overhang <= blockWidth) {
-                const newWidth = Math.min(lastBlock.width, blockWidth - overhang);
+                const newWidth = Math.max(MIN_BLOCK_WIDTH, Math.min(lastBlock.width, blockWidth - overhang));
                 const newX = currentBlock.x < lastBlock.x ? currentBlock.x + overhang : currentBlock.x;
                 tower.push({...currentBlock, x: newX, width: newWidth, y: lastBlock.y - blockHeight});
                 score += 1;
                 blockWidth = newWidth;
+
+                updateHorizontalSpeed();
             } else {
                 gameOver = true;
                 return;
             }
 
             fallingSpeed += 0.2;
-            baseHorizontalSpeed += 0.1;
             createNewBlock();
         }
 
@@ -214,7 +223,6 @@
                     currentBlock.isMoving = false;
                     currentBlock.isDescending = true;
                 } else if (currentBlock.isDescending) {
-                    // Instant placement
                     while (currentBlock.y + blockHeight < tower[tower.length - 1].y) {
                         currentBlock.y += fallingSpeed;
                     }
