@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bad Bloxx Game – by JRNMO</title>
+    <title>Neon Bloxx</title>
     <style>
         body {
             margin: 0;
@@ -26,51 +26,48 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        let width, height, blockWidth, blockHeight;
+        const GAME_WIDTH = 1080;
+        const GAME_HEIGHT = 1920;
+        let scale;
+
+        let blockWidth, blockHeight;
         let score = 0;
         let gameOver = false;
-        let fallingSpeed = 2;
-        let horizontalSpeed = 1.5;
+        let fallingSpeed = 4; // Adjusted for larger dimensions
+        let horizontalSpeed = 3; // Adjusted for larger dimensions
 
         let tower = [];
         let currentBlock = null;
         let clouds = [];
 
         function resizeCanvas() {
-            const aspectRatio = 9 / 16;
-            height = window.innerHeight;
-            width = height * aspectRatio;
-            
-            if (width > window.innerWidth) {
-                width = window.innerWidth;
-                height = width / aspectRatio;
+            const windowRatio = window.innerWidth / window.innerHeight;
+            const gameRatio = GAME_WIDTH / GAME_HEIGHT;
+
+            if (windowRatio < gameRatio) {
+                scale = window.innerWidth / GAME_WIDTH;
+            } else {
+                scale = window.innerHeight / GAME_HEIGHT;
             }
 
-            canvas.width = width;
-            canvas.height = height;
-            canvas.style.width = `${width}px`;
-            canvas.style.height = `${height}px`;
+            canvas.width = GAME_WIDTH;
+            canvas.height = GAME_HEIGHT;
+            canvas.style.width = `${GAME_WIDTH * scale}px`;
+            canvas.style.height = `${GAME_HEIGHT * scale}px`;
 
-            blockWidth = width * 0.25;
-            blockHeight = height * 0.025;
+            blockWidth = Math.floor(GAME_WIDTH * 0.25);
+            blockHeight = Math.floor(GAME_HEIGHT * 0.025);
         }
 
         function getRandomNeonColor() {
-            const neonColors = [
-                '#FF00FF', // Magenta
-                '#00FFFF', // Cyan
-                '#FF0099', // Pink
-                '#00FF00', // Lime
-                '#FFD700', // Gold
-                '#FF6600', // Orange
-            ];
+            const neonColors = ['#FF00FF', '#00FFFF', '#FF0099', '#00FF00', '#FFD700', '#FF6600'];
             return neonColors[Math.floor(Math.random() * neonColors.length)];
         }
 
         function createNewBlock() {
             currentBlock = {
-                x: width / 2 - blockWidth / 2,
-                y: height * 0.2, // Position below the score
+                x: GAME_WIDTH / 2 - blockWidth / 2,
+                y: GAME_HEIGHT * 0.2, // Position below the score
                 color: getRandomNeonColor(),
                 isMoving: true,
                 isDescending: false,
@@ -81,10 +78,10 @@
         function createClouds() {
             for (let i = 0; i < 5; i++) {
                 clouds.push({
-                    x: Math.random() * width,
-                    y: Math.random() * height,
+                    x: Math.random() * GAME_WIDTH,
+                    y: Math.random() * GAME_HEIGHT,
                     size: Math.random() * 0.2 + 0.1,
-                    speed: Math.random() * 0.2 + 0.1
+                    speed: Math.random() * 0.5 + 0.5 // Adjusted for larger dimensions
                 });
             }
         }
@@ -94,23 +91,22 @@
 
             if (currentBlock.isMoving) {
                 currentBlock.x += currentBlock.direction * horizontalSpeed;
-                if (currentBlock.x <= 0 || currentBlock.x + blockWidth >= width) {
+                if (currentBlock.x <= 0 || currentBlock.x + blockWidth >= GAME_WIDTH) {
                     currentBlock.direction *= -1;
                 }
             } else if (currentBlock.isDescending) {
                 currentBlock.y += fallingSpeed;
 
-                if (currentBlock.y + blockHeight >= height || 
+                if (currentBlock.y + blockHeight >= GAME_HEIGHT || 
                     (tower.length > 0 && currentBlock.y + blockHeight >= tower[tower.length - 1].y)) {
                     placeBlock();
                 }
             }
 
-            // Update clouds
             clouds.forEach(cloud => {
                 cloud.x += cloud.speed;
-                if (cloud.x > width) {
-                    cloud.x = -width * cloud.size;
+                if (cloud.x > GAME_WIDTH) {
+                    cloud.x = -GAME_WIDTH * cloud.size;
                 }
             });
         }
@@ -130,13 +126,13 @@
                 return;
             }
 
-            fallingSpeed += 0.1;
-            horizontalSpeed += 0.05;
+            fallingSpeed += 0.2;
+            horizontalSpeed += 0.1;
             createNewBlock();
         }
 
         function drawNeonBlock(x, y, width, color) {
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 30; // Increased for larger dimensions
             ctx.shadowColor = color;
             ctx.fillStyle = color;
             ctx.fillRect(x, y, width, blockHeight);
@@ -146,19 +142,19 @@
         function drawCloud(x, y, size) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
             ctx.beginPath();
-            ctx.arc(x, y, 25 * size, Math.PI * 0.5, Math.PI * 1.5);
-            ctx.arc(x + 25 * size, y - 25 * size, 25 * size, Math.PI * 1, Math.PI * 2);
-            ctx.arc(x + 50 * size, y, 20 * size, Math.PI * 0.5, Math.PI * 1.5);
+            ctx.arc(x, y, 50 * size, Math.PI * 0.5, Math.PI * 1.5);
+            ctx.arc(x + 50 * size, y - 50 * size, 50 * size, Math.PI * 1, Math.PI * 2);
+            ctx.arc(x + 100 * size, y, 40 * size, Math.PI * 0.5, Math.PI * 1.5);
             ctx.closePath();
             ctx.fill();
         }
 
         function drawBackground() {
-            const gradient = ctx.createLinearGradient(0, 0, 0, height);
+            const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
             gradient.addColorStop(0, '#000033');
             gradient.addColorStop(1, '#000066');
             ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, width, height);
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
             clouds.forEach(cloud => drawCloud(cloud.x, cloud.y, cloud.size));
         }
@@ -166,32 +162,29 @@
         function draw() {
             drawBackground();
 
-            // Draw tower
             tower.forEach(block => {
                 drawNeonBlock(block.x, block.y, block.width, block.color);
             });
 
-            // Draw current block
             if (currentBlock) {
                 drawNeonBlock(currentBlock.x, currentBlock.y, blockWidth, currentBlock.color);
             }
 
-            // Draw score
             ctx.fillStyle = '#FFFFFF';
             ctx.textAlign = 'center';
-            ctx.font = 'bold 24px Arial';
-            ctx.fillText('Score', width / 2, height * 0.05);
             ctx.font = 'bold 48px Arial';
-            ctx.fillText(score, width / 2, height * 0.1);
+            ctx.fillText('Score', GAME_WIDTH / 2, GAME_HEIGHT * 0.05);
+            ctx.font = 'bold 96px Arial';
+            ctx.fillText(score, GAME_WIDTH / 2, GAME_HEIGHT * 0.1);
 
             if (gameOver) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(0, 0, width, height);
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
                 ctx.fillStyle = '#FFFFFF';
-                ctx.font = 'bold 30px Arial';
-                ctx.fillText('Game Over', width / 2, height / 2 - 20);
-                ctx.fillText(`Final Score: ${score}`, width / 2, height / 2 + 20);
-                ctx.fillText('Tap to restart', width / 2, height / 2 + 60);
+                ctx.font = 'bold 60px Arial';
+                ctx.fillText('Game Over', GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40);
+                ctx.fillText(`Final Score: ${score}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 40);
+                ctx.fillText('Tap to restart', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 120);
             }
         }
 
@@ -201,26 +194,29 @@
             requestAnimationFrame(gameLoop);
         }
 
-        function handleTap() {
+        function handleTap(event) {
+            event.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = (event.clientX - rect.left) / scale;
+            const y = (event.clientY - rect.top) / scale;
+
             if (gameOver) {
                 resetGame();
-            } else if (currentBlock) {
-                if (currentBlock.isMoving) {
-                    currentBlock.isMoving = false;
-                    currentBlock.isDescending = true;
-                }
+            } else if (currentBlock && currentBlock.isMoving) {
+                currentBlock.isMoving = false;
+                currentBlock.isDescending = true;
             }
         }
 
         function resetGame() {
             score = 0;
             gameOver = false;
-            fallingSpeed = 2;
-            horizontalSpeed = 1.5;
-            blockWidth = width * 0.25;
+            fallingSpeed = 4;
+            horizontalSpeed = 3;
+            blockWidth = Math.floor(GAME_WIDTH * 0.25);
             tower = [{
-                x: width / 2 - blockWidth / 2,
-                y: height - blockHeight,
+                x: GAME_WIDTH / 2 - blockWidth / 2,
+                y: GAME_HEIGHT - blockHeight,
                 width: blockWidth,
                 color: getRandomNeonColor()
             }];
