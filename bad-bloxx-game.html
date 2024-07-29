@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bad Bloxx Game – by JRNMO</title>
+    <title>Neon Bloxx</title>
     <style>
         body {
             margin: 0;
@@ -28,13 +28,16 @@
 
         const GAME_WIDTH = 1080;
         const GAME_HEIGHT = 1920;
+        const BASE_LAYERS = 5;
         let scale;
 
         let blockWidth, blockHeight;
         let score = 0;
         let gameOver = false;
-        let fallingSpeed = 4; // Adjusted for larger dimensions
-        let horizontalSpeed = 3; // Adjusted for larger dimensions
+        let fallingSpeed = 4;
+        let baseHorizontalSpeed = 3;
+        let currentHorizontalSpeed = baseHorizontalSpeed;
+        let blockCreationTime;
 
         let tower = [];
         let currentBlock = null;
@@ -67,12 +70,14 @@
         function createNewBlock() {
             currentBlock = {
                 x: GAME_WIDTH / 2 - blockWidth / 2,
-                y: GAME_HEIGHT * 0.2, // Position below the score
+                y: GAME_HEIGHT * 0.2,
                 color: getRandomNeonColor(),
                 isMoving: true,
                 isDescending: false,
                 direction: Math.random() < 0.5 ? -1 : 1
             };
+            blockCreationTime = Date.now();
+            currentHorizontalSpeed = baseHorizontalSpeed;
         }
 
         function createClouds() {
@@ -81,7 +86,7 @@
                     x: Math.random() * GAME_WIDTH,
                     y: Math.random() * GAME_HEIGHT,
                     size: Math.random() * 0.2 + 0.1,
-                    speed: Math.random() * 0.5 + 0.5 // Adjusted for larger dimensions
+                    speed: Math.random() * 0.5 + 0.5
                 });
             }
         }
@@ -90,15 +95,17 @@
             if (gameOver) return;
 
             if (currentBlock.isMoving) {
-                currentBlock.x += currentBlock.direction * horizontalSpeed;
+                const elapsedTime = (Date.now() - blockCreationTime) / 1000;
+                currentHorizontalSpeed = baseHorizontalSpeed + (elapsedTime * 0.5);
+                
+                currentBlock.x += currentBlock.direction * currentHorizontalSpeed;
                 if (currentBlock.x <= 0 || currentBlock.x + blockWidth >= GAME_WIDTH) {
                     currentBlock.direction *= -1;
                 }
             } else if (currentBlock.isDescending) {
                 currentBlock.y += fallingSpeed;
 
-                if (currentBlock.y + blockHeight >= GAME_HEIGHT || 
-                    (tower.length > 0 && currentBlock.y + blockHeight >= tower[tower.length - 1].y)) {
+                if (currentBlock.y + blockHeight >= tower[tower.length - 1].y) {
                     placeBlock();
                 }
             }
@@ -118,7 +125,7 @@
             if (overhang <= blockWidth) {
                 const newWidth = Math.min(lastBlock.width, blockWidth - overhang);
                 const newX = currentBlock.x < lastBlock.x ? currentBlock.x + overhang : currentBlock.x;
-                tower.push({...currentBlock, x: newX, width: newWidth});
+                tower.push({...currentBlock, x: newX, width: newWidth, y: lastBlock.y - blockHeight});
                 score += 1;
                 blockWidth = newWidth;
             } else {
@@ -127,12 +134,12 @@
             }
 
             fallingSpeed += 0.2;
-            horizontalSpeed += 0.1;
+            baseHorizontalSpeed += 0.1;
             createNewBlock();
         }
 
         function drawNeonBlock(x, y, width, color) {
-            ctx.shadowBlur = 30; // Increased for larger dimensions
+            ctx.shadowBlur = 30;
             ctx.shadowColor = color;
             ctx.fillStyle = color;
             ctx.fillRect(x, y, width, blockHeight);
@@ -202,9 +209,17 @@
 
             if (gameOver) {
                 resetGame();
-            } else if (currentBlock && currentBlock.isMoving) {
-                currentBlock.isMoving = false;
-                currentBlock.isDescending = true;
+            } else if (currentBlock) {
+                if (currentBlock.isMoving) {
+                    currentBlock.isMoving = false;
+                    currentBlock.isDescending = true;
+                } else if (currentBlock.isDescending) {
+                    // Instant placement
+                    while (currentBlock.y + blockHeight < tower[tower.length - 1].y) {
+                        currentBlock.y += fallingSpeed;
+                    }
+                    placeBlock();
+                }
             }
         }
 
@@ -212,14 +227,19 @@
             score = 0;
             gameOver = false;
             fallingSpeed = 4;
-            horizontalSpeed = 3;
+            baseHorizontalSpeed = 3;
             blockWidth = Math.floor(GAME_WIDTH * 0.25);
-            tower = [{
-                x: GAME_WIDTH / 2 - blockWidth / 2,
-                y: GAME_HEIGHT - blockHeight,
-                width: blockWidth,
-                color: getRandomNeonColor()
-            }];
+
+            tower = [];
+            for (let i = 0; i < BASE_LAYERS; i++) {
+                tower.push({
+                    x: GAME_WIDTH / 2 - blockWidth / 2,
+                    y: GAME_HEIGHT - (i + 1) * blockHeight,
+                    width: blockWidth,
+                    color: getRandomNeonColor()
+                });
+            }
+
             createNewBlock();
             createClouds();
         }
